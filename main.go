@@ -223,7 +223,7 @@ func mapNext(c *config, s ...string) error {
 		return err
 	}
 
-	if sc := res.StatusCode; sc > 399 {
+	if sc := res.StatusCode; sc > 299 {
 		errorMessage := "response status code: " + fmt.Sprintf("%d", sc)
 		return errors.New(errorMessage)
 	}
@@ -274,7 +274,7 @@ func mapPrev(c *config, s ...string) error {
 		return err
 	}
 
-	if sc := res.StatusCode; sc > 399 {
+	if sc := res.StatusCode; sc > 299 {
 		errorMessage := "response status code:" + fmt.Sprintf("%d", sc)
 		return errors.New(errorMessage)
 	}
@@ -304,7 +304,6 @@ func pokemonList(c *config, names ...string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(unmarshaled)
 	for _, pokemon := range unmarshaled.PokemonEncounters {
 		fmt.Println(pokemon.Pokemon.Name)
 	}
@@ -314,7 +313,6 @@ func pokemonList(c *config, names ...string) error {
 func pokemonsInArea(endpoint, next, prev string) (locEndpoint, error) {
 	val, ok := cache.Get(endpoint)
 	var unmarshaled locEndpoint
-	url := prev + "/" + endpoint
 	if ok {
 		var unmarshaled locEndpoint
 		err := json.Unmarshal(val, &unmarshaled)
@@ -331,11 +329,19 @@ func pokemonsInArea(endpoint, next, prev string) (locEndpoint, error) {
 	// map before, config.prev will have the appropriate url
 	// if they magically just knew the area name from next,
 	// we will try that url in an if case
+	var url string
+	querySeparated := strings.Split(prev, "?")
+	if len(querySeparated) == 1 {
+		url = fmt.Sprintf("%s/%s", prev, endpoint)
+	} else {
+		url = fmt.Sprintf("%s/%s?%s", querySeparated[0], endpoint, querySeparated[1])
+	}
+
 	res, err := http.Get(url)
 	if err != nil {
 		return unmarshaled, err
 	}
-	if sc := res.StatusCode; sc > 399 {
+	if sc := res.StatusCode; sc > 299 {
 		if sc == 404 {
 			return unmarshaled, errors.New("invalid location-area-name (possible spelling mistakes)")
 		}
@@ -354,12 +360,18 @@ func pokemonsInArea(endpoint, next, prev string) (locEndpoint, error) {
 	}
 
 	if len(unmarshaled.PokemonEncounters) == 0 {
-		url := next + "/" + endpoint
+		var url string
+		querySeparated := strings.Split(prev, "?")
+		if len(querySeparated) == 1 {
+			url = fmt.Sprintf("%s/%s", next, endpoint)
+		} else {
+			url = fmt.Sprintf("%s/%s?%s", querySeparated[0], endpoint, querySeparated[1])
+		}
 		res, err := http.Get(url)
 		if err != nil {
 			return unmarshaled, err
 		}
-		if sc := res.StatusCode; sc > 399 {
+		if sc := res.StatusCode; sc > 299 {
 			if sc == 404 {
 				return unmarshaled, errors.New("invalid location-area-name (possible spelling mistakes)")
 			}
