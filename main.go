@@ -364,7 +364,6 @@ func pokemonsInArea(endpoint, next, prev string) (locEndpoint, error) {
 				return unmarshaled, errors.New("invalid location-area-name (possible spelling mistakes)")
 			}
 			errorMessage := "response status code: " + fmt.Sprintf("%d", sc)
-			fmt.Printf("%v\n", body)
 			return unmarshaled, errors.New(errorMessage)
 		}
 
@@ -381,16 +380,11 @@ func pokemonsInArea(endpoint, next, prev string) (locEndpoint, error) {
 			return unmarshaled, err
 		}
 
-		for _, pokemon := range unmarshaled.PokemonEncounters {
-			fmt.Println(pokemon.Pokemon.Name)
-		}
 		return unmarshaled, nil
 	}
 
 	cache.Add(endpoint, body)
 	res.Body.Close()
-
-	fmt.Printf("%v\n", body)
 
 	return unmarshaled, nil
 }
