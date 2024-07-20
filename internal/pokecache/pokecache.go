@@ -20,6 +20,7 @@ func NewCache(interval time.Duration) Cache {
 		entries: make(map[string]cacheEntry),
 		mu:      &sync.Mutex{},
 	}
+	go cache.reapLoop(interval)
 	return cache
 }
 
