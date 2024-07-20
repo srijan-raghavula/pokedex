@@ -10,13 +10,103 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
+
+func main() {
+	cfg := config{
+		next: "https://pokeapi.co/api/v2/location-area",
+		prev: "https://pokeapi.co/api/v2/location-area",
+	}
+	commands = map[string]command{
+		"help": {
+			name:        "help",
+			description: "prints a message to help yourself using Pokedex",
+			callback:    printCommands,
+		},
+		"exit": {
+			name:        "exit",
+			description: "exits Pokedex",
+			callback:    exit,
+		},
+		"map": {
+			name:        "map",
+			description: "prints the next 20 location areas in the pokemon world",
+			callback:    mapNext,
+		},
+		"mapb": {
+			name:        "mapb",
+			description: "prints the previous 20 location areas in the pokemon world (returns an error if you haven't started your exploration yet)",
+			callback:    mapPrev,
+		},
+		"explore": {
+			name:        "explore",
+			description: "takes a location area and lists all the Pokemons in the area",
+			callback:    pokemonList,
+		},
+	}
+	for {
+		scanned := bufio.NewScanner(os.Stdin)
+		fmt.Printf("Pokedex > ")
+		scanned.Scan()
+		stdIn, err := scanned.Text(), scanned.Err()
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		words := strings.Fields(stdIn)
+		for i, word := range words {
+			words[i] = strings.ToLower(word)
+		}
+		cmd := words[0]
+		noOfWords := len(words)
+
+		switch cmd {
+		case "help":
+			err := commands[cmd].callback(&cfg)
+			if err != nil {
+				log.Fatal(err)
+			}
+		case "exit":
+			err := commands[cmd].callback(&cfg)
+			if err != nil {
+				log.Fatal(err)
+			}
+		case "map":
+			err := commands[cmd].callback(&cfg)
+			if err != nil {
+				log.Fatal(err)
+			}
+		case "mapb":
+			err := commands[cmd].callback(&cfg)
+			if err != nil {
+				fmt.Println(err)
+			}
+		case "explore":
+			if noOfWords < 2 {
+				fmt.Println("usage: explore <location-area-name>")
+				break
+			}
+			locationAreaEndpoint := words[1]
+			err := commands[cmd].callback(&cfg, locationAreaEndpoint)
+			if err != nil {
+				fmt.Println(err)
+			}
+		default:
+			fmt.Println(`Available commands to use(use "help" for more details)`)
+			for k := range commands {
+				fmt.Println(k)
+			}
+		}
+
+	}
+}
 
 type command struct {
 	name        string
 	description string
-	callback    func(string, *config) error
+	callback    func(*config, ...string) error
 }
 
 type config struct {
@@ -91,84 +181,7 @@ var commands map[string]command
 var isFirstCall bool = true
 var cache pokecache.Cache = pokecache.NewCache(time.Minute * 2)
 
-func main() {
-	c := config{
-		next: "https://pokeapi.co/api/v2/location-area",
-		prev: "",
-	}
-	commands = map[string]command{
-		"help": {
-			name:        "help",
-			description: "prints a message to help yourself using Pokedex",
-			callback:    printCommands,
-		},
-		"exit": {
-			name:        "exit",
-			description: "exits Pokedex",
-			callback:    exit,
-		},
-		"map": {
-			name:        "map",
-			description: "prints the next 20 location areas in the pokemon world",
-			callback:    mapNext,
-		},
-		"mapb": {
-			name:        "mapb",
-			description: "prints the previous 20 location areas in the pokemon world (returns an error if you haven't started your exploration yet)",
-			callback:    mapPrev,
-		},
-		"explore": {
-			name:        "explore",
-			description: "takes a location area and lists all the Pokemons in the area",
-			callback:    nil,
-		},
-	}
-	for {
-		fmt.Printf("Pokedex > ")
-		scanned := bufio.NewScanner(os.Stdin)
-		if scanned.Scan() {
-			stdIn, err := scanned.Text(), scanned.Err()
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			switch stdIn {
-			case "help":
-				err := commands[stdIn].callback("", &c)
-				if err != nil {
-					log.Fatal(err)
-				}
-			case "exit":
-				err := commands[stdIn].callback("", &c)
-				if err != nil {
-					log.Fatal(err)
-				}
-			case "map":
-				err := commands[stdIn].callback("", &c)
-				if err != nil {
-					log.Fatal(err)
-				}
-			case "mapb":
-				err := commands[stdIn].callback("", &c)
-				if err != nil {
-					fmt.Println(err)
-				}
-			case "explore":
-				err := commands[stdIn].callback("", &c)
-				if err != nil {
-					fmt.Println(err)
-				}
-			default:
-				fmt.Println(`Available commands to use(use "help" for more details)`)
-				for k := range commands {
-					fmt.Println(k)
-				}
-			}
-		}
-	}
-}
-
-func printCommands(s string, c *config) error {
+func printCommands(c *config, s ...string) error {
 	if len(commands) == 0 {
 		return errors.New("no commands yet")
 	}
@@ -184,32 +197,25 @@ func printCommands(s string, c *config) error {
 	return nil
 }
 
-func exit(s string, c *config) error {
+func exit(c *config, s ...string) error {
 	os.Exit(1)
 	return nil
 }
 
-func mapNext(s string, c *config) error {
+func mapNext(c *config, s ...string) error {
 	val, ok := cache.Get(c.next)
 	if ok {
-		body := val
-		var bodyMap locList
-		err := json.Unmarshal(body, &bodyMap)
+		var unmarshaled locList
+		err := json.Unmarshal(val, &unmarshaled)
 		if err != nil {
 			return err
 		}
 
-		for _, result := range bodyMap.Results {
+		for _, result := range unmarshaled.Results {
 			fmt.Println(result.Name)
 		}
-		if !isFirstCall {
-			c.prev = bodyMap.Previous
-		}
-		if isFirstCall {
-			c.prev = c.next
-			isFirstCall = false
-		}
-		c.next = bodyMap.Next
+		c.prev = unmarshaled.Previous
+		c.next = unmarshaled.Next
 		return nil
 	}
 	res, err := http.Get(c.next)
@@ -218,7 +224,7 @@ func mapNext(s string, c *config) error {
 	}
 
 	if sc := res.StatusCode; sc > 399 {
-		errorMessage := "response status code: " + fmt.Sprintf("%q", sc)
+		errorMessage := "response status code: " + fmt.Sprintf("%d", sc)
 		return errors.New(errorMessage)
 	}
 
@@ -229,37 +235,33 @@ func mapNext(s string, c *config) error {
 	cache.Add(c.next, body)
 	res.Body.Close()
 
-	var bodyMap locList
-	err = json.Unmarshal(body, &bodyMap)
+	var unmarshaled locList
+	err = json.Unmarshal(body, &unmarshaled)
 	if err != nil {
 		return err
 	}
 
-	for _, result := range bodyMap.Results {
+	for _, result := range unmarshaled.Results {
 		fmt.Println(result.Name)
 	}
 	if !isFirstCall {
-		c.prev = bodyMap.Previous
+		c.prev = unmarshaled.Previous
 	}
-	if isFirstCall {
-		c.prev = c.next
-		isFirstCall = false
-	}
-	c.next = bodyMap.Next
+	c.next = unmarshaled.Next
+	isFirstCall = false
 	return nil
 }
 
-func mapPrev(s string, c *config) error {
+func mapPrev(c *config, s ...string) error {
 	val, ok := cache.Get(c.prev)
 	if ok {
-		body := val
-		var bodyMap locList
-		err := json.Unmarshal(body, &bodyMap)
+		var unmarshaled locList
+		err := json.Unmarshal(val, &unmarshaled)
 		if err != nil {
 			return err
 		}
 
-		for _, result := range bodyMap.Results {
+		for _, result := range unmarshaled.Results {
 			fmt.Println(result.Name)
 		}
 		return nil
@@ -273,7 +275,7 @@ func mapPrev(s string, c *config) error {
 	}
 
 	if sc := res.StatusCode; sc > 399 {
-		errorMessage := "response status code:" + fmt.Sprintf("%q", sc)
+		errorMessage := "response status code:" + fmt.Sprintf("%d", sc)
 		return errors.New(errorMessage)
 	}
 
@@ -284,58 +286,111 @@ func mapPrev(s string, c *config) error {
 	cache.Add(c.prev, body)
 	res.Body.Close()
 
-	var bodyMap locList
-	err = json.Unmarshal(body, &bodyMap)
+	var unmarshaled locList
+	err = json.Unmarshal(body, &unmarshaled)
 	if err != nil {
 		return err
 	}
 
-	for _, result := range bodyMap.Results {
+	for _, result := range unmarshaled.Results {
 		fmt.Println(result.Name)
 	}
 	return nil
 }
 
-func locArea(name string, c *config) error {
-	val, ok := cache.Get(c.prev + "/" + name)
-	if ok {
-		body := val
-		var bodyMap locEndpoint
-		err := json.Unmarshal(body, &bodyMap)
-		if err != nil {
-			return err
-		}
-
-		for _, result := range bodyMap.PokemonEncounters {
-			fmt.Println(result.Pokemon.Name)
-		}
-		return nil
-	}
-	res, err := http.Get(c.prev + "/" + name)
+func pokemonList(c *config, names ...string) error {
+	endpoint := names[0]
+	unmarshaled, err := pokemonsInArea(endpoint, c.next, c.prev)
 	if err != nil {
 		return err
 	}
+	fmt.Println(unmarshaled)
+	for _, pokemon := range unmarshaled.PokemonEncounters {
+		fmt.Println(pokemon.Pokemon.Name)
+	}
+	return nil
+}
 
+func pokemonsInArea(endpoint, next, prev string) (locEndpoint, error) {
+	val, ok := cache.Get(endpoint)
+	var unmarshaled locEndpoint
+	url := prev + "/" + endpoint
+	if ok {
+		var unmarshaled locEndpoint
+		err := json.Unmarshal(val, &unmarshaled)
+		if err != nil {
+			return unmarshaled, err
+		}
+
+		return unmarshaled, nil
+	}
+
+	// players most likely will explore an area
+	// they know the name of and they know the name
+	// from using map previously, if they used
+	// map before, config.prev will have the appropriate url
+	// if they magically just knew the area name from next,
+	// we will try that url in an if case
+	res, err := http.Get(url)
+	if err != nil {
+		return unmarshaled, err
+	}
 	if sc := res.StatusCode; sc > 399 {
-		errorMessage := "response status code: " + fmt.Sprintf("%q", sc)
-		return errors.New(errorMessage)
+		if sc == 404 {
+			return unmarshaled, errors.New("invalid location-area-name (possible spelling mistakes)")
+		}
+		errorMessage := "response status code: " + fmt.Sprintf("%d", sc)
+		return unmarshaled, errors.New(errorMessage)
 	}
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return err
+		return unmarshaled, err
 	}
-	cache.Add(c.next, body)
+
+	err = json.Unmarshal(body, &unmarshaled)
+	if err != nil {
+		return unmarshaled, err
+	}
+
+	if len(unmarshaled.PokemonEncounters) == 0 {
+		url := next + "/" + endpoint
+		res, err := http.Get(url)
+		if err != nil {
+			return unmarshaled, err
+		}
+		if sc := res.StatusCode; sc > 399 {
+			if sc == 404 {
+				return unmarshaled, errors.New("invalid location-area-name (possible spelling mistakes)")
+			}
+			errorMessage := "response status code: " + fmt.Sprintf("%d", sc)
+			fmt.Printf("%v\n", body)
+			return unmarshaled, errors.New(errorMessage)
+		}
+
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return unmarshaled, err
+		}
+		cache.Add(endpoint, body)
+		res.Body.Close()
+
+		var unmarshaled locEndpoint
+		err = json.Unmarshal(body, &unmarshaled)
+		if err != nil {
+			return unmarshaled, err
+		}
+
+		for _, pokemon := range unmarshaled.PokemonEncounters {
+			fmt.Println(pokemon.Pokemon.Name)
+		}
+		return unmarshaled, nil
+	}
+
+	cache.Add(endpoint, body)
 	res.Body.Close()
 
-	var bodyMap locEndpoint
-	err = json.Unmarshal(body, &bodyMap)
-	if err != nil {
-		return err
-	}
+	fmt.Printf("%v\n", body)
 
-	for _, result := range bodyMap.PokemonEncounters {
-		fmt.Println(result.Pokemon.Name)
-	}
-	return nil
+	return unmarshaled, nil
 }
