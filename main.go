@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/srijan-raghavula/pokedex/internal/pokecache"
+	"github.com/srijan-raghavula/pokedex/internal/pokemon"
 	"io"
 	"log"
 	"net/http"
@@ -44,6 +45,16 @@ func main() {
 			name:        "explore",
 			description: "takes a location area and lists all the Pokemons in the area",
 			callback:    pokemonList,
+		},
+		"catch": {
+			name:        "catch",
+			description: "catches pokemon and adds to Pokedex",
+			callback:    catchPokemon,
+		},
+		"inspect": {
+			name:        "inspect",
+			description: "inspects a Pokemon in your Pokedex and shows the details of the Pokemon",
+			callback:    inspectPokemon,
 		},
 	}
 	for {
@@ -88,8 +99,28 @@ func main() {
 				fmt.Println("usage: explore <location-area-name>")
 				break
 			}
-			locationAreaEndpoint := words[1]
+			locationAreaEndpoint := (words[1])
 			err := commands[cmd].callback(&cfg, locationAreaEndpoint)
+			if err != nil {
+				fmt.Println(err)
+			}
+		case "catch":
+			if noOfWords < 2 {
+				fmt.Println("usage: catch <pokemon-name>")
+				break
+			}
+			pokemonName := strings.ToLower(words[1])
+			err := commands[cmd].callback(&cfg, pokemonName)
+			if err != nil {
+				fmt.Println(err)
+			}
+		case "inspect":
+			if noOfWords < 2 {
+				fmt.Println("usage: catch <pokemon-name>")
+				break
+			}
+			pokemonName := strings.ToLower(words[1])
+			err := commands[cmd].callback(&cfg, pokemonName)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -122,59 +153,6 @@ type locList struct {
 		Name string `json:"name"`
 		URL  string `json:"url"`
 	} `json:"results"`
-}
-
-type locEndpoint struct {
-	EncounterMethodRates []struct {
-		EncounterMethod struct {
-			Name string `json:"name"`
-			URL  string `json:"url"`
-		} `json:"encounter_method"`
-		VersionDetails []struct {
-			Rate    int `json:"rate"`
-			Version struct {
-				Name string `json:"name"`
-				URL  string `json:"url"`
-			} `json:"version"`
-		} `json:"version_details"`
-	} `json:"encounter_method_rates"`
-	GameIndex int `json:"game_index"`
-	ID        int `json:"id"`
-	Location  struct {
-		Name string `json:"name"`
-		URL  string `json:"url"`
-	} `json:"location"`
-	Name  string `json:"name"`
-	Names []struct {
-		Language struct {
-			Name string `json:"name"`
-			URL  string `json:"url"`
-		} `json:"language"`
-		Name string `json:"name"`
-	} `json:"names"`
-	PokemonEncounters []struct {
-		Pokemon struct {
-			Name string `json:"name"`
-			URL  string `json:"url"`
-		} `json:"pokemon"`
-		VersionDetails []struct {
-			EncounterDetails []struct {
-				Chance          int   `json:"chance"`
-				ConditionValues []any `json:"condition_values"`
-				MaxLevel        int   `json:"max_level"`
-				Method          struct {
-					Name string `json:"name"`
-					URL  string `json:"url"`
-				} `json:"method"`
-				MinLevel int `json:"min_level"`
-			} `json:"encounter_details"`
-			MaxChance int `json:"max_chance"`
-			Version   struct {
-				Name string `json:"name"`
-				URL  string `json:"url"`
-			} `json:"version"`
-		} `json:"version_details"`
-	} `json:"pokemon_encounters"`
 }
 
 var commands map[string]command
@@ -299,6 +277,9 @@ func mapPrev(c *config, s ...string) error {
 }
 
 func pokemonList(c *config, names ...string) error {
+	if len(names) < 1 {
+		return errors.New("check the string passed into the function")
+	}
 	endpoint := names[0]
 	unmarshaled, err := pokemonsInArea(endpoint, c.next, c.prev)
 	if err != nil {
@@ -399,4 +380,101 @@ func pokemonsInArea(endpoint, next, prev string) (locEndpoint, error) {
 	res.Body.Close()
 
 	return unmarshaled, nil
+}
+
+func catchPokemon(c *config, name ...string) error {
+	if len(name) < 1 {
+		return errors.New("check the string passed into the function")
+	}
+	isCaught, err := pokemon.IsCaught(name[0])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣤⣶⣶⣿⣿⣿⣿⣿⣶⣶⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⣠⣶⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣄⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⡄⠀⠀⠀\n⠀⠀⠀⣼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡏⠀⠀⠙⣿⣿⣿⣿⣿⣆⠀⠀\n⠀⠀⣼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠿⢿⣧⡀⠀⢠⣿⠟⠛⠛⠿⣿⡆⠀\n⠀⢰⣿⣿⣿⣿⣿⣿⠿⠟⠋⠉⠁⠀⠀⠀⠀⠀⠙⠿⠿⠟⠋⠀⠀⠀⣠⣿⠇⠀\n⠀⢸⣿⣿⡿⠟⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣤⣾⠟⠋⠀⠀\n⠀⢸⣿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣤⣴⣾⠿⠛⠉⠀⠀⠀⠀⠀\n⠀⠈⢿⣷⣤⣤⣄⣠⣤⣤⣤⣤⣶⣶⣾⠿⠿⠛⠛⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⢠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣶⣦⣤⣀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣦⣄⠀⠀⠀⠀\n⠀⢸⣿⡛⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⡀⠀\n⠀⠀⢻⣧⠀⠈⠙⠛⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀\n⠀⠀⠈⢿⣧⠀⠀⠀⠀⠀⠀⠉⠙⠛⠻⠿⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠁⠀\n⠀⠀⠀⠀⠻⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⣿⣿⣿⣿⠟⠀⣠⣾⠟⠀⠀⠀\n⠀⠀⠀⠀⠀⠈⠻⣷⣦⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⢀⣤⣾⠟⠁⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠙⠻⠿⣶⣦⣤⣤⣤⣤⣤⣤⣶⡿⠟⠋⠁⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠉⠉⠉⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n\n\n")
+	time.Sleep(time.Second * 1)
+	fmt.Printf("Catching %s ", name[0])
+	time.Sleep(time.Millisecond * 750)
+	fmt.Printf(". ")
+	time.Sleep(time.Millisecond * 750)
+	fmt.Printf(". ")
+	time.Sleep(time.Millisecond * 750)
+	fmt.Printf(".\n")
+	time.Sleep(time.Second * 1)
+	if isCaught {
+		fmt.Printf("%s was caught and added to your Pokedex\n", name[0])
+		return nil
+	}
+	fmt.Printf("%s managed to not get caught\n", name[0])
+	return nil
+}
+
+func inspectPokemon(c *config, name ...string) error {
+	pokemon, err := pokemon.Pokemons.Get(name[0])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Pokemon: %s\n", pokemon.Name)
+	fmt.Printf("Height: %d | Weight: %d\n", pokemon.Height, pokemon.Weight)
+	fmt.Println("==TYPES==")
+	for _, pokemonType := range pokemon.Types {
+		fmt.Println(pokemonType.Type.Name)
+	}
+	fmt.Println("==STATS==")
+	for _, stat := range pokemon.Stats {
+		fmt.Printf("%s: %d\n", stat.Stat.Name, stat.BaseStat)
+	}
+	return err
+}
+
+type locEndpoint struct {
+	EncounterMethodRates []struct {
+		EncounterMethod struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"encounter_method"`
+		VersionDetails []struct {
+			Rate    int `json:"rate"`
+			Version struct {
+				Name string `json:"name"`
+				URL  string `json:"url"`
+			} `json:"version"`
+		} `json:"version_details"`
+	} `json:"encounter_method_rates"`
+	GameIndex int `json:"game_index"`
+	ID        int `json:"id"`
+	Location  struct {
+		Name string `json:"name"`
+		URL  string `json:"url"`
+	} `json:"location"`
+	Name  string `json:"name"`
+	Names []struct {
+		Language struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"language"`
+		Name string `json:"name"`
+	} `json:"names"`
+	PokemonEncounters []struct {
+		Pokemon struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"pokemon"`
+		VersionDetails []struct {
+			EncounterDetails []struct {
+				Chance          int   `json:"chance"`
+				ConditionValues []any `json:"condition_values"`
+				MaxLevel        int   `json:"max_level"`
+				Method          struct {
+					Name string `json:"name"`
+					URL  string `json:"url"`
+				} `json:"method"`
+				MinLevel int `json:"min_level"`
+			} `json:"encounter_details"`
+			MaxChance int `json:"max_chance"`
+			Version   struct {
+				Name string `json:"name"`
+				URL  string `json:"url"`
+			} `json:"version"`
+		} `json:"version_details"`
+	} `json:"pokemon_encounters"`
 }
