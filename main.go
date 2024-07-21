@@ -56,6 +56,11 @@ func main() {
 			description: "inspects a Pokemon in your Pokedex and shows the details of the Pokemon",
 			callback:    inspectPokemon,
 		},
+		"pokedex": {
+			name:        "pokedex",
+			description: "lists all the Pokemons caught",
+			callback:    pokedex,
+		},
 	}
 	for {
 		scanned := bufio.NewScanner(os.Stdin)
@@ -121,6 +126,11 @@ func main() {
 			}
 			pokemonName := strings.ToLower(words[1])
 			err := commands[cmd].callback(&cfg, pokemonName)
+			if err != nil {
+				fmt.Println(err)
+			}
+		case "pokedex":
+			err := commands[cmd].callback(&cfg)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -424,6 +434,10 @@ func inspectPokemon(c *config, name ...string) error {
 		fmt.Printf("%s: %d\n", stat.Stat.Name, stat.BaseStat)
 	}
 	return err
+}
+
+func pokedex(c *config, name ...string) error {
+	return pokemon.Pokemons.Print()
 }
 
 type locEndpoint struct {

@@ -31,3 +31,16 @@ func (c *Pokedex) Get(name string) (PokemonEndpoint, error) {
 	}
 	return pokemon, nil
 }
+
+func (c *Pokedex) Print() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.List) == 0 {
+		return errors.New("You haven't caught any Pokemons...YET!")
+	}
+	fmt.Println("==Your Pokedex==")
+	for k := range c.List {
+		fmt.Println(k)
+	}
+	return nil
+}
